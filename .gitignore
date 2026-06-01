@@ -1,0 +1,47 @@
+# === Custom Project Exclusions ===
+README/
+pan_modum/
+
+# === Arduino/ESP32 ===
+firmware/ignis_esp32/build/
+*.hex
+*.bin
+*.elf
+
+# === Backend (Java/Spring Boot) ===
+backend/target/
+backend/.mvn/
+backend/mvnw
+backend/mvnw.cmd
+backend/*.jar
+backend/*.war
+
+# === Frontend (React/Node.js) ===
+frontend/node_modules/
+frontend/dist/
+frontend/.svelte-kit/
+frontend/build/
+
+# === IDEs / Editors ===
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.classpath
+.project
+.settings/
+.factorypath
+bin/
+
+# === Environments / Secrets ===
+.env
+.env.local
+.env.*.local
+*.log
+
+# === System Files ===
+.DS_Store
+Thumbs.db
