@@ -10,6 +10,7 @@ static unsigned long lastStepMs     = 0;
 static unsigned long lastPrintMs    = 0;    // throttle tracking log → 1s
 static unsigned long tiltFireStart  = 0;    // mốc tilt bắt đầu liên tục thấy lửa
 static bool          alarmOn        = false;
+static unsigned long lastTiltFireMs = 0;    // mốc thời gian cuối cùng phát hiện lửa
 
 // Relay ON khi cả 2 điều kiện đồng thời đạt:
 //   Pan: panStable + giữ ổn định >= PAN_RELAY_MS
@@ -27,6 +28,7 @@ static void stateHeader(const char* msg) {
 
 // ===== INIT =====
 void initTiltControl() {
+  pinMode(TILT_SENSOR_PIN, INPUT_PULLUP);
   servoTilt.attach(TILT_PIN);
   servoTilt.write(TILT_DEFAULT);
   lastTiltAngle = TILT_DEFAULT;
@@ -74,20 +76,19 @@ void updateTilt(bool panFire) {
 
       servoTilt.write(scanAngle);
       {
-        int  val    = analogRead(TILT_SENSOR_PIN);
-        bool onFire = val < FIRE_THRESHOLD_TILT;
+        bool onFire = (digitalRead(TILT_SENSOR_PIN) == LOW);
+        int  val    = onFire ? 100 : 4095;
 
         Serial.print(F("[SCAN]  "));
         if (scanAngle < 100) Serial.print(' ');
         if (scanAngle <  10) Serial.print(' ');
         Serial.print(scanAngle);
-        Serial.print(F("°  val="));
-        Serial.print(val);
-        Serial.println(onFire ? F("  \U0001f525  FOUND") : F("  —"));
+        Serial.println(onFire ? F("°  \U0001f525  FOUND") : F("°  —"));
 
         if (onFire) {
           lastTiltAngle = scanAngle;
           tiltFireStart = now;   // bắt đầu đếm 2s tilt
+          lastTiltFireMs = now;  // lưu mốc thời gian phát hiện lửa
           lastPrintMs   = 0;
           alarmOn       = false;
           tiltState     = TILT_TRACKING;
@@ -106,24 +107,35 @@ void updateTilt(bool panFire) {
     // ── TRACKING ─────────────────────────────────────────────────────
     // Giữ góc Tilt. Pan tracking realtime.
     // Relay ON khi: panStable ≥ 1s  VÀ  tilt fire liên tục ≥ 2s.
-    // Relay tắt chỉ khi tilt sensor mất lửa → RETURNING.
+    // Relay tắt chỉ khi tilt sensor mất lửa (sau 5s) → RETURNING.
     case TILT_TRACKING:
       if (now - lastStepMs < 150) return;
       lastStepMs = now;
 
       {
-        int  val    = analogRead(TILT_SENSOR_PIN);
-        bool onFire = val < FIRE_THRESHOLD_TILT;
+        bool onFire = (digitalRead(TILT_SENSOR_PIN) == LOW);
+        int  val    = onFire ? 100 : 4095;
 
-        if (!onFire) {
-          // Lửa mất → tắt relay, reset
+        if (onFire) {
+          lastTiltFireMs = now; // Cập nhật mốc thời gian có lửa
+        } else {
+          // Lửa mất
           if (alarmOn) {
-            setAlarm(false);
-            alarmOn = false;
+            // Nếu bơm đang chạy, áp dụng debounce trễ tắt bơm 5s
+            unsigned long elapsedNoFire = now - lastTiltFireMs;
+            if (elapsedNoFire >= 5000UL) {
+              setAlarm(false);
+              alarmOn = false;
+              stateHeader("\U0001f9ef Mất lửa > 5s  →  RETURNING       ");
+              tiltState = TILT_RETURNING;
+              return;
+            }
+          } else {
+            // Nếu chưa bật bơm mà mất lửa, huỷ bỏ quét và trả về ngay
+            stateHeader("\U0001f9ef Mất lửa khi chưa bật bơm  →  RETURNING");
+            tiltState = TILT_RETURNING;
+            return;
           }
-          stateHeader("\U0001f9ef Tilt mất lửa  →  RETURNING       ");
-          tiltState = TILT_RETURNING;
-          return;
         }
 
         // Tính thời gian ổn định
@@ -146,8 +158,7 @@ void updateTilt(bool panFire) {
           lastPrintMs = now;
           Serial.print(F("[TRACK]  tilt="));
           Serial.print(lastTiltAngle);
-          Serial.print(F("°  val="));
-          Serial.print(val);
+          Serial.print(F("°"));
           // Pan countdown
           Serial.print(F("  pan="));
           if (panOk) {
@@ -164,7 +175,19 @@ void updateTilt(bool panFire) {
             Serial.print(tiltMs / 1000); Serial.print(F("."));
             Serial.print((tiltMs % 1000) / 100); Serial.print(F("s/2s"));
           }
-          Serial.print(alarmOn ? F("  \U0001f7e5 RELAY=ON") : F("  \u25a1 waiting"));
+          
+          if (alarmOn) {
+            if (onFire) {
+              Serial.print(F("  \U0001f7e5 RELAY=ON"));
+            } else {
+              float timeLeft = (5000.0f - (float)(now - lastTiltFireMs)) / 1000.0f;
+              Serial.print(F("  \u26a0 COOLDOWN: "));
+              Serial.print(timeLeft, 1);
+              Serial.print(F("s"));
+            }
+          } else {
+            Serial.print(F("  \u25a1 waiting"));
+          }
           Serial.println();
         }
       }
@@ -199,9 +222,7 @@ void goTiltHome() {
 
 // ===== RAW PRINT =====
 void printTiltSensor() {
-  int  val    = analogRead(TILT_SENSOR_PIN);
-  bool onFire = val < FIRE_THRESHOLD_TILT;
-  Serial.print(F("[TILT-SENSOR]  GPIO36  val="));
-  Serial.print(val);
-  Serial.println(onFire ? F("  \U0001f525 FIRE") : F("  —"));
+  bool onFire = (digitalRead(TILT_SENSOR_PIN) == LOW);
+  Serial.print(F("[TILT-SENSOR]  GPIO4: "));
+  Serial.println(onFire ? F("\U0001f525 FIRE") : F("—"));
 }

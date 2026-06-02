@@ -53,25 +53,27 @@ bool calcAndPan() {
   bool  hasFl    = (totalWeight > 0);
   float panAngle = hasFl ? constrain(weightedSum / totalWeight, 0, 180) : 0;
 
-  // ── In 1 dòng: góc + raw sensor ──────────────────────────────────────
-  // ★ = included in avg  |  🔥 = fire detected but filtered  |  — = no fire
+  // ── In 1 dòng: góc + raw sensor (Throttled & clean) ──────────────────
+  static unsigned long lastPanPrintMs = 0;
+  static bool lastHadFire = false;
+  unsigned long now = millis();
+
   if (hasFl) {
-    Serial.print(F("[PAN] \U0001f525 "));
-    if (panAngle < 100) Serial.print(' ');
-    if (panAngle <  10) Serial.print(' ');
-    Serial.print(panAngle, 1); Serial.print(F("°"));
+    if (!lastHadFire || (now - lastPanPrintMs >= 500)) {
+      lastPanPrintMs = now;
+      lastHadFire = true;
+      Serial.print(F("[PAN] \U0001f525 "));
+      if (panAngle < 100) Serial.print(' ');
+      if (panAngle <  10) Serial.print(' ');
+      Serial.print(panAngle, 1);
+      Serial.println(F("°"));
+    }
   } else {
-    Serial.print(F("[PAN]  —      "));
+    if (lastHadFire) {
+      lastHadFire = false;
+      Serial.println(F("[PAN] 🍃 No fire detected  —  Standby"));
+    }
   }
-  Serial.print(F("  |"));
-  for (int i = 0; i < NUM_SENSORS; i++) {
-    Serial.print(F("  S")); Serial.print(i);
-    Serial.print(':'); Serial.print(values[i]);
-    if (included[i])          Serial.print(F("\u2605"));   // ★ dùng trong avg
-    else if (weights[i] > 0)  Serial.print(F("\U0001f525")); // 🔥 filtered out
-    else                      Serial.print(F("\u2014"));   // — no fire
-  }
-  Serial.println();
 
   // ── Không có lửa ─────────────────────────────────────────────────
   if (!hasFl) {
@@ -90,7 +92,7 @@ bool calcAndPan() {
 
   // ── Stability detection ───────────────────────────────────────────
   float drift = fabsf(panAngle - stableTargetAngle);
-  unsigned long now = millis();
+  now = millis();
 
   if (drift > PAN_STABLE_DEG) {
     // Lửa ra ngoài vùng → reset anchor

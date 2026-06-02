@@ -4,6 +4,7 @@
 #include "PanControl.h"
 #include "TiltControl.h"
 #include "Actuators.h"
+#include "MqttControl.h"
 
 // ===== MODE FLAGS =====
 bool panAuto  = false;
@@ -16,25 +17,31 @@ void setup() {
   initPanControl();
   initTiltControl();
   initMLX();
+  initNetwork();
 
-  Serial.println("\n=== IGNIS — Pan + Tilt + Relay + Buzzer ===");
-  Serial.println("--- Auto ---");
-  Serial.println("  f → FULL AUTO ON  (pan → tilt → relay + buzzer)");
-  Serial.println("  x → FULL AUTO OFF");
-  Serial.println("  a → Pan AUTO ON  (pan only)");
-  Serial.println("  z → Pan AUTO OFF");
-  Serial.println("--- Manual ---");
-  Serial.println("  s → pan 1 lần");
-  Serial.println("  r → pan về home");
-  Serial.println("  p → raw 7 sensor pan");
-  Serial.println("  y → tilt về home (90°)");
-  Serial.println("  q → raw sensor tilt");
-  Serial.println("  t → đọc nhiệt độ MLX90614");
-  Serial.println("  1 → relay ON  |  0 → relay OFF");
-  Serial.println("  2 → buzzer ON |  3 → buzzer OFF");
+  Serial.println(F("\n┌────────────────────────────────────────────────────────┐"));
+  Serial.println(F("│       🔥 IGNIS: AUTOMATED FIRE SUPPRESSION SYSTEM       │"));
+  Serial.println(F("├────────────────────────────────────────────────────────┤"));
+  Serial.println(F("│  [AUTO MODE COMMANDS]                                  │"));
+  Serial.println(F("│    f  →  FULL AUTO ON  (Pan → Tilt → Relay + Buzzer)    │"));
+  Serial.println(F("│    x  →  FULL AUTO OFF                                 │"));
+  Serial.println(F("│    a  →  PAN ONLY AUTO ON                              │"));
+  Serial.println(F("│    z  →  PAN ONLY AUTO OFF                             │"));
+  Serial.println(F("│                                                        │"));
+  Serial.println(F("│  [MANUAL TEST COMMANDS]                                │"));
+  Serial.println(F("│    s  →  Trigger single Pan check                      │"));
+  Serial.println(F("│    r  →  Reset Pan to Home (90°)                       │"));
+  Serial.println(F("│    p  →  Print raw horizontal sensor values            │"));
+  Serial.println(F("│    y  →  Reset Tilt to Home (90°)                      │"));
+  Serial.println(F("│    q  →  Print raw Tilt sensor status                  │"));
+  Serial.println(F("│    t  →  Read temperatures from MLX90614               │"));
+  Serial.println(F("│    1  →  Turn Water Pump ON   |  0  →  Turn Pump OFF    │"));
+  Serial.println(F("│    2  →  Turn Buzzer ON       |  3  →  Turn Buzzer OFF  │"));
+  Serial.println(F("└────────────────────────────────────────────────────────┘"));
 }
 
 void loop() {
+  handleNetwork();
 
   // ── FULL AUTO: pan → tilt → relay + buzzer ────────────────────
   if (fullAuto) {

@@ -7,7 +7,7 @@
 #define BUZZER_PIN  25   // HIGH = kêu
 
 // ===== TILT SENSOR (KY-026 trên servo tilt) =====
-#define TILT_SENSOR_PIN     36
+#define TILT_SENSOR_PIN     4
 #define FIRE_THRESHOLD_TILT 500   // custom KY-026: DƯỚI = lửa
 
 // ===== TILT RANGE =====
@@ -24,7 +24,7 @@
 #define S3_PIN    33    // H3
 #define S4_PIN    13    // H4
 #define S5_PIN    39    // H5
-#define S6_PIN     4    // custom phải
+#define S6_PIN    36    // custom phải
 
 #define NUM_SENSORS          7
 #define FIRE_THRESHOLD_KY   500
@@ -33,5 +33,14 @@
 extern int sensorPins[NUM_SENSORS];
 extern float sensorAngles[NUM_SENSORS];
 extern bool isCustom[NUM_SENSORS];
+
+// ===== WIFI & MQTT CONFIGURATION =====
+#define WIFI_SSID           "HuuHuynh"
+#define WIFI_PASSWORD       "12052006"
+#define MQTT_SERVER         "192.168.1.2"      // Thay bằng IP máy chạy Mosquitto
+#define MQTT_PORT           1883
+#define MQTT_CLIENT_ID      "esp32_ignis"
+#define MQTT_TOPIC_STATUS   "fire/status"
+#define HEARTBEAT_INTERVAL  10000UL              // 10s gửi heartbeat
 
 #endif // CONFIG_H
