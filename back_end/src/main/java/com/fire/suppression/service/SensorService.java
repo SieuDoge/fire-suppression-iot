@@ -4,6 +4,9 @@ import com.fire.suppression.dto.SensorReadingDTO;
 import com.fire.suppression.entity.SensorReading;
 import com.fire.suppression.repository.SensorReadingRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -32,10 +35,8 @@ public class SensorService {
     }
 
     public List<SensorReadingDTO> getLatestReadings(int limit) {
-        // Simple implementation for now, ideally use Pageable
-        return repository.findAll().stream()
-                .sorted((a, b) -> b.getRecordedAt().compareTo(a.getRecordedAt()))
-                .limit(limit)
+        Pageable pageable = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "recordedAt"));
+        return repository.findAll(pageable).getContent().stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }

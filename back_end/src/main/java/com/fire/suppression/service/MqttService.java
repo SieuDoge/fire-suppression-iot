@@ -1,6 +1,7 @@
 package com.fire.suppression.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fire.suppression.dto.Esp32StatusDTO;
 import com.fire.suppression.dto.FireEventDTO;
 import com.fire.suppression.dto.SensorReadingDTO;
 import lombok.RequiredArgsConstructor;
@@ -41,7 +42,20 @@ public class MqttService {
         log.info("Received MQTT message: {}", payload);
         
         try {
-            SensorReadingDTO dto = objectMapper.readValue(payload, SensorReadingDTO.class);
+            Esp32StatusDTO esp32Dto = objectMapper.readValue(payload, Esp32StatusDTO.class);
+            
+            // Map Esp32StatusDTO to SensorReadingDTO
+            SensorReadingDTO dto = SensorReadingDTO.builder()
+                    .sensorS0(esp32Dto.getSensors() != null && esp32Dto.getSensors().size() > 0 ? esp32Dto.getSensors().get(0) : 0)
+                    .sensorS1(esp32Dto.getSensors() != null && esp32Dto.getSensors().size() > 1 ? esp32Dto.getSensors().get(1) : 0)
+                    .sensorS2(esp32Dto.getSensors() != null && esp32Dto.getSensors().size() > 2 ? esp32Dto.getSensors().get(2) : 0)
+                    .sensorS3(esp32Dto.getSensors() != null && esp32Dto.getSensors().size() > 3 ? esp32Dto.getSensors().get(3) : 0)
+                    .sensorS4(esp32Dto.getSensors() != null && esp32Dto.getSensors().size() > 4 ? esp32Dto.getSensors().get(4) : 0)
+                    .sensorS5(esp32Dto.getSensors() != null && esp32Dto.getSensors().size() > 5 ? esp32Dto.getSensors().get(5) : 0)
+                    .sensorS6(esp32Dto.getSensors() != null && esp32Dto.getSensors().size() > 6 ? esp32Dto.getSensors().get(6) : 0)
+                    .irTemp(esp32Dto.getTempObject())
+                    .build();
+            
             SensorReadingDTO savedDto = sensorService.saveReading(dto);
             
             // Broadcast sensor data via WebSocket
@@ -58,16 +72,15 @@ public class MqttService {
     }
 
     private boolean isFireDetected(SensorReadingDTO dto) {
-        int threshold = 500; // Ngưỡng cảm biến lửa (thấp hơn là có lửa)
-        double tempThreshold = 55.0; // Ngưỡng nhiệt độ IR
+        double tempThreshold = 55.0; // Ngưỡng nhiệt độ IR (nhiệt độ thực tế lớn hơn ngưỡng này là có lửa)
         
-        return (dto.getSensorS0() != null && dto.getSensorS0() < threshold) ||
-               (dto.getSensorS1() != null && dto.getSensorS1() < threshold) ||
-               (dto.getSensorS2() != null && dto.getSensorS2() < threshold) ||
-               (dto.getSensorS3() != null && dto.getSensorS3() < threshold) ||
-               (dto.getSensorS4() != null && dto.getSensorS4() < threshold) ||
-               (dto.getSensorS5() != null && dto.getSensorS5() < threshold) ||
-               (dto.getSensorS6() != null && dto.getSensorS6() < threshold) ||
+        return (dto.getSensorS0() != null && dto.getSensorS0() == 1) ||
+               (dto.getSensorS1() != null && dto.getSensorS1() == 1) ||
+               (dto.getSensorS2() != null && dto.getSensorS2() == 1) ||
+               (dto.getSensorS3() != null && dto.getSensorS3() == 1) ||
+               (dto.getSensorS4() != null && dto.getSensorS4() == 1) ||
+               (dto.getSensorS5() != null && dto.getSensorS5() == 1) ||
+               (dto.getSensorS6() != null && dto.getSensorS6() == 1) ||
                (dto.getIrTemp() != null && dto.getIrTemp() > tempThreshold);
     }
 
@@ -76,13 +89,13 @@ public class MqttService {
         
         // 1. Create Fire Event
         StringBuilder triggered = new StringBuilder();
-        if (dto.getSensorS0() != null && dto.getSensorS0() < 500) triggered.append("S0 ");
-        if (dto.getSensorS1() != null && dto.getSensorS1() < 500) triggered.append("S1 ");
-        if (dto.getSensorS2() != null && dto.getSensorS2() < 500) triggered.append("S2 ");
-        if (dto.getSensorS3() != null && dto.getSensorS3() < 500) triggered.append("S3 ");
-        if (dto.getSensorS4() != null && dto.getSensorS4() < 500) triggered.append("S4 ");
-        if (dto.getSensorS5() != null && dto.getSensorS5() < 500) triggered.append("S5 ");
-        if (dto.getSensorS6() != null && dto.getSensorS6() < 500) triggered.append("S6 ");
+        if (dto.getSensorS0() != null && dto.getSensorS0() == 1) triggered.append("S0 ");
+        if (dto.getSensorS1() != null && dto.getSensorS1() == 1) triggered.append("S1 ");
+        if (dto.getSensorS2() != null && dto.getSensorS2() == 1) triggered.append("S2 ");
+        if (dto.getSensorS3() != null && dto.getSensorS3() == 1) triggered.append("S3 ");
+        if (dto.getSensorS4() != null && dto.getSensorS4() == 1) triggered.append("S4 ");
+        if (dto.getSensorS5() != null && dto.getSensorS5() == 1) triggered.append("S5 ");
+        if (dto.getSensorS6() != null && dto.getSensorS6() == 1) triggered.append("S6 ");
 
         FireEventDTO event = FireEventDTO.builder()
                 .detectedAt(LocalDateTime.now())

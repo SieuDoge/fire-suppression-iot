@@ -48,7 +48,7 @@ public class MqttConfig {
     public MessageHandler mqttOutbound() {
         MqttPahoMessageHandler messageHandler = new MqttPahoMessageHandler(clientId + "_pub", mqttClientFactory());
         messageHandler.setAsync(true);
-        messageHandler.setDefaultTopic("fire/control");
+        messageHandler.setDefaultTopic("fire/status");
         return messageHandler;
     }
 
@@ -60,8 +60,8 @@ public class MqttConfig {
 
     @Bean
     public MessageProducer inbound() {
-        MqttPahoMessageDrivenChannelAdapter adapter =
-                new MqttPahoMessageDrivenChannelAdapter(clientId + "_sub", mqttClientFactory(), sensorTopic);
+        MqttPahoMessageDrivenChannelAdapter adapter = new MqttPahoMessageDrivenChannelAdapter(clientId + "_sub",
+                mqttClientFactory(), sensorTopic);
         adapter.setCompletionTimeout(5000);
         adapter.setConverter(new DefaultPahoMessageConverter());
         adapter.setQos(1);
