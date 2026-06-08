@@ -43,6 +43,21 @@ public class SensorReading {
     @Column(name = "sensor_s6")
     private Integer sensorS6;
 
-    @Column(name = "ir_temp")
-    private Double irTemp;
+    @Column(name = "tilt_sensor")
+    private Integer tiltSensor;
+
+    @Column(name = "pan_angle")
+    private Double panAngle;
+
+    @Column(name = "tilt_angle")
+    private Integer tiltAngle;
+
+    @Column(name = "pump")
+    private Boolean pump;
+
+    @Column(name = "temp_ambient")
+    private Double tempAmbient;
+
+    @Column(name = "temp_object")
+    private Double tempObject;
 }

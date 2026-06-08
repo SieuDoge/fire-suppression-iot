@@ -27,9 +27,14 @@ public class SensorService {
                 .sensorS4(dto.getSensorS4())
                 .sensorS5(dto.getSensorS5())
                 .sensorS6(dto.getSensorS6())
-                .irTemp(dto.getIrTemp())
+                .tiltSensor(dto.getTiltSensor())
+                .panAngle(dto.getPanAngle())
+                .tiltAngle(dto.getTiltAngle())
+                .pump(dto.getPump())
+                .tempAmbient(dto.getTempAmbient())
+                .tempObject(dto.getTempObject())
                 .build();
-        
+
         SensorReading saved = repository.save(entity);
         return mapToDTO(saved);
     }
@@ -52,7 +57,12 @@ public class SensorService {
                 .sensorS4(entity.getSensorS4())
                 .sensorS5(entity.getSensorS5())
                 .sensorS6(entity.getSensorS6())
-                .irTemp(entity.getIrTemp())
+                .tiltSensor(entity.getTiltSensor())
+                .panAngle(entity.getPanAngle())
+                .tiltAngle(entity.getTiltAngle())
+                .pump(entity.getPump())
+                .tempAmbient(entity.getTempAmbient())
+                .tempObject(entity.getTempObject())
                 .build();
     }
 }
