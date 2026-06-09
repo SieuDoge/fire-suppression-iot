@@ -41,6 +41,7 @@ extern bool isCustom[NUM_SENSORS];
 #define MQTT_PORT           1883
 #define MQTT_CLIENT_ID      "esp32_ignis"
 #define MQTT_TOPIC_STATUS   "fire/status"
+#define MQTT_TOPIC_CONTROL  "fire/control"
 #define HEARTBEAT_INTERVAL  10000UL              // 10s gửi heartbeat
 
 #endif // CONFIG_H
