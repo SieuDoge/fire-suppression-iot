@@ -1,5 +1,6 @@
 package com.fire.suppression.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
@@ -10,6 +11,7 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import jakarta.annotation.PostConstruct;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -25,9 +27,11 @@ public class TelegramService extends TelegramLongPollingBot {
     private String chatId;
 
     private final MqttService mqttService;
+    private final ObjectMapper objectMapper;
 
-    public TelegramService(@Lazy MqttService mqttService) {
+    public TelegramService(@Lazy MqttService mqttService, ObjectMapper objectMapper) {
         this.mqttService = mqttService;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -45,30 +49,34 @@ public class TelegramService extends TelegramLongPollingBot {
         if (update.hasMessage() && update.getMessage().hasText()) {
             String messageText = update.getMessage().getText();
             long receivedChatId = update.getMessage().getChatId();
-            
+
             log.info("Received message from Telegram chat {}: {}", receivedChatId, messageText);
-            
+
             if (messageText.startsWith("/start")) {
-                sendNotification("Welcome to Fire Suppression Bot! Use /id to get chat ID or /control <action> <value>.");
+                sendReply(receivedChatId, "Welcome to Fire Suppression Bot! Use /id to get chat ID or /control <action> <value>.");
             } else if (messageText.equals("/id")) {
-                sendNotification("Your Chat ID is: " + receivedChatId);
+                sendReply(receivedChatId, "Your Chat ID is: " + receivedChatId);
             } else if (messageText.startsWith("/control")) {
-                handleControlCommand(messageText);
+                handleControlCommand(messageText, receivedChatId);
             }
         }
     }
 
-    private void handleControlCommand(String text) {
-        // Example: /control fan on
+    private void handleControlCommand(String text, long replyToChatId) {
         String[] parts = text.split(" ");
         if (parts.length >= 3) {
             String action = parts[1];
             String value = parts[2];
-            String payload = String.format("{\"action\":\"%s\", \"value\":\"%s\"}", action, value);
-            mqttService.publish("fire/control", payload);
-            sendNotification("✅ Sent control command: " + action + "=" + value);
+            try {
+                String payload = objectMapper.writeValueAsString(
+                        Map.of("action", action, "value", value));
+                mqttService.publish("fire/control", payload);
+                sendReply(replyToChatId, "✅ Sent control command: " + action + "=" + value);
+            } catch (Exception e) {
+                sendReply(replyToChatId, "❌ Error: " + e.getMessage());
+            }
         } else {
-            sendNotification("❌ Invalid command. Usage: /control <action> <value>");
+            sendReply(replyToChatId, "❌ Invalid command. Usage: /control <action> <value>");
         }
     }
 
@@ -94,5 +102,20 @@ public class TelegramService extends TelegramLongPollingBot {
     @PostConstruct
     public void init() {
         log.info("Telegram Bot initialized with username: {}", botUsername);
+    }
+
+    /**
+     * Gửi tin nhắn tới một chatId cụ thể (reply cho người nhắn bot)
+     */
+    private void sendReply(long targetChatId, String message) {
+        SendMessage sendMessage = new SendMessage();
+        sendMessage.setChatId(String.valueOf(targetChatId));
+        sendMessage.setText(message);
+
+        try {
+            execute(sendMessage);
+        } catch (TelegramApiException e) {
+            log.error("Failed to send Telegram reply: {}", e.getMessage());
+        }
     }
 }

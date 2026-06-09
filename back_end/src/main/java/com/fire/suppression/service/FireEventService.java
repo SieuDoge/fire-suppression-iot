@@ -16,7 +16,7 @@ public class FireEventService {
     private final FireEventRepository repository;
 
     public List<FireEventDTO> getAllEvents() {
-        return repository.findAll().stream()
+        return repository.findAllByOrderByIdDesc().stream()
                 .map(this::mapToDTO)
                 .collect(Collectors.toList());
     }
@@ -31,7 +31,21 @@ public class FireEventService {
                 .durationSeconds(dto.getDurationSeconds())
                 .triggeredSensors(dto.getTriggeredSensors())
                 .build();
-        
+
+        FireEvent saved = repository.save(entity);
+        return mapToDTO(saved);
+    }
+
+    public FireEventDTO updateEvent(Integer id, FireEventDTO dto) {
+        FireEvent entity = repository.findById(id).orElse(null);
+        if (entity == null) {
+            return saveEvent(dto);
+        }
+        if (dto.getExtinguishedAt() != null) entity.setExtinguishedAt(dto.getExtinguishedAt());
+        if (dto.getMaxTemp() != null) entity.setMaxTemp(dto.getMaxTemp());
+        if (dto.getDurationSeconds() != null) entity.setDurationSeconds(dto.getDurationSeconds());
+        if (dto.getTriggeredSensors() != null) entity.setTriggeredSensors(dto.getTriggeredSensors());
+
         FireEvent saved = repository.save(entity);
         return mapToDTO(saved);
     }
