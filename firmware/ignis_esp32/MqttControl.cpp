@@ -23,7 +23,78 @@ static float         lastPubTempObject  = -999.0f;
 
 static unsigned long lastHeartbeatMs    = 0;
 static unsigned long lastMqttAttemptMs  = 0;
+static unsigned long lastWifiAttemptMs  = 0;
 static bool          wifiConnected      = false;
+
+// ===== MQTT CALLBACK HANDLER =====
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+  Serial.print(F(">> [MQTT] Message arrived ["));
+  Serial.print(topic);
+  Serial.println(F("]"));
+
+  // Đọc payload dưới dạng chuỗi
+  char payloadStr[length + 1];
+  memcpy(payloadStr, payload, length);
+  payloadStr[length] = '\0';
+  Serial.print(F(">> Payload: "));
+  Serial.println(payloadStr);
+
+  // Parse JSON nhận được
+  StaticJsonDocument<256> doc;
+  DeserializationError error = deserializeJson(doc, payloadStr);
+  if (error) {
+    Serial.print(F(">> [MQTT] JSON parsing failed: "));
+    Serial.println(error.c_str());
+    return;
+  }
+
+  // Xử lý các lệnh điều khiển từ backend
+  if (doc.containsKey("action") && doc.containsKey("value")) {
+    const char* action = doc["action"];
+    const char* value = doc["value"];
+    bool turnOn = (strcmp(value, "on") == 0);
+
+    Serial.print(F(">> [MQTT] Action: "));
+    Serial.print(action);
+    Serial.print(F(", Value: "));
+    Serial.println(value);
+
+    extern bool fullAuto;
+    extern bool panAuto;
+
+    if (strcmp(action, "fullAuto") == 0) {
+      fullAuto = turnOn;
+      if (fullAuto) {
+        panAuto = false;
+      } else {
+        setAlarm(false); // Tắt bơm và còi khi tắt chế độ tự động
+      }
+      Serial.print(F(">> [MQTT] FULL AUTO: "));
+      Serial.println(fullAuto ? F("ON") : F("OFF"));
+    } 
+    else if (strcmp(action, "panAuto") == 0) {
+      panAuto = turnOn;
+      if (panAuto) {
+        fullAuto = false;
+      }
+      Serial.print(F(">> [MQTT] PAN AUTO: "));
+      Serial.println(panAuto ? F("ON") : F("OFF"));
+    } 
+    else if (strcmp(action, "pump") == 0) {
+      setRelay(turnOn);
+      Serial.print(F(">> [MQTT] PUMP: "));
+      Serial.println(turnOn ? F("ON") : F("OFF"));
+    } 
+    else if (strcmp(action, "buzzer") == 0) {
+      setBuzzer(turnOn);
+      Serial.print(F(">> [MQTT] BUZZER: "));
+      Serial.println(turnOn ? F("ON") : F("OFF"));
+    }
+    
+    // Gửi phản hồi cập nhật trạng thái mới lập tức
+    publishState(true);
+  }
+}
 
 // ===== INIT NETWORK =====
 void initNetwork() {
@@ -33,8 +104,11 @@ void initNetwork() {
   
   // Thiết lập MQTT client
   client.setServer(MQTT_SERVER, MQTT_PORT);
+  client.setCallback(mqttCallback);
+  client.setBufferSize(512); // Tăng kích thước buffer nhận/gửi lên 512 bytes
   
   lastHeartbeatMs = millis();
+  lastWifiAttemptMs = millis();
 }
 
 // ===== HANDLE NETWORK (Non-blocking Reconnect) =====
@@ -53,6 +127,14 @@ void handleNetwork() {
       Serial.println(F(">> [WiFi] Lost connection. Reconnecting..."));
       wifiConnected = false;
     }
+    
+    // Thử kết nối lại sau mỗi 10 giây nếu mất kết nối
+    if (now - lastWifiAttemptMs > 10000) {
+      lastWifiAttemptMs = now;
+      Serial.println(F(">> [WiFi] Attempting WiFi reconnection..."));
+      WiFi.disconnect();
+      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    }
     return; // Chưa có WiFi thì không xử lý tiếp MQTT
   }
 
@@ -66,6 +148,10 @@ void handleNetwork() {
       
       if (client.connect(MQTT_CLIENT_ID)) {
         Serial.println(F(">> [MQTT] Connected successfully!"));
+        bool sub = client.subscribe(MQTT_TOPIC_CONTROL);
+        if(sub) Serial.println(F(">> [MQTT] Subscribed to fire/control"));
+        else Serial.println(F(">> [MQTT] Subscribe FAILED!"));
+        delay(100);
         publishState(true); // Gửi bản tin đồng bộ ngay khi kết nối
       } else {
         Serial.print(F(">> [MQTT] Failed, rc="));
