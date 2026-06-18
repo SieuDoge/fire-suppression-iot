@@ -6,6 +6,7 @@ COPY package*.json ./
 RUN npm install
 # Copy source code and build
 COPY . .
+ENV VITE_USE_REAL_API=true
 RUN npm run build
 
 # Stage 2: Serve the application with Nginx
