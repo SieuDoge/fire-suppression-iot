@@ -28,7 +28,7 @@
 
 #define NUM_SENSORS          7
 #define FIRE_THRESHOLD_KY   500
-#define FIRE_THRESHOLD_MOD  200
+#define FIRE_THRESHOLD_MOD  4000
 
 extern int sensorPins[NUM_SENSORS];
 extern float sensorAngles[NUM_SENSORS];
