@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include "MqttControl.h"
 #include "Config.h"
+#include "NetworkConfig.h"
 #include "Sensors.h"
 #include "PanControl.h"
 #include "TiltControl.h"
@@ -81,14 +82,47 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       Serial.println(panAuto ? F("ON") : F("OFF"));
     } 
     else if (strcmp(action, "pump") == 0) {
-      setRelay(turnOn);
-      Serial.print(F(">> [MQTT] PUMP: "));
-      Serial.println(turnOn ? F("ON") : F("OFF"));
+      if (fullAuto) {
+        Serial.println(F(">> [MQTT] PUMP ignored — AUTO mode active"));
+      } else {
+        setRelay(turnOn);
+        Serial.print(F(">> [MQTT] PUMP: "));
+        Serial.println(turnOn ? F("ON") : F("OFF"));
+      }
     } 
     else if (strcmp(action, "buzzer") == 0) {
-      setBuzzer(turnOn);
-      Serial.print(F(">> [MQTT] BUZZER: "));
-      Serial.println(turnOn ? F("ON") : F("OFF"));
+      if (fullAuto) {
+        Serial.println(F(">> [MQTT] BUZZER ignored — AUTO mode active"));
+      } else {
+        setBuzzer(turnOn);
+        Serial.print(F(">> [MQTT] BUZZER: "));
+        Serial.println(turnOn ? F("ON") : F("OFF"));
+      }
+    }
+    else if (strcmp(action, "servo") == 0) {
+      if (fullAuto) {
+        Serial.println(F(">> [MQTT] SERVO ignored — AUTO mode active. Switch to MANUAL first."));
+      } else {
+        // Parse "pan:XXX,tilt:YYY" format
+        int pan = -1, tilt = -1;
+        const char* pPan = strstr(value, "pan:");
+        const char* pTilt = strstr(value, "tilt:");
+        if (pPan) pan = atoi(pPan + 4);
+        if (pTilt) tilt = atoi(pTilt + 5);
+
+        if (pan >= 0 && pan <= 180) {
+          servoPan.write(pan);
+          lastPanAngle = (float)pan;
+          Serial.print(F(">> [MQTT] SERVO PAN → "));
+          Serial.println(pan);
+        }
+        if (tilt >= 0 && tilt <= 150) {
+          servoTilt.write(tilt);
+          lastTiltAngle = tilt;
+          Serial.print(F(">> [MQTT] SERVO TILT → "));
+          Serial.println(tilt);
+        }
+      }
     }
     
     // Gửi phản hồi cập nhật trạng thái mới lập tức
@@ -98,14 +132,17 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
 // ===== INIT NETWORK =====
 void initNetwork() {
+  // Load config từ NVS (hoặc dùng default từ Config.h)
+  loadNetConfig();
+
   Serial.println(F("\n>> [Network] Initializing WiFi..."));
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.begin(netCfg.wifiSSID, netCfg.wifiPassword);
   
   // Thiết lập MQTT client
-  client.setServer(MQTT_SERVER, MQTT_PORT);
+  client.setServer(netCfg.mqttServer, netCfg.mqttPort);
   client.setCallback(mqttCallback);
-  client.setBufferSize(512); // Tăng kích thước buffer nhận/gửi lên 512 bytes
+  client.setBufferSize(512);
   
   lastHeartbeatMs = millis();
   lastWifiAttemptMs = millis();
@@ -133,7 +170,7 @@ void handleNetwork() {
       lastWifiAttemptMs = now;
       Serial.println(F(">> [WiFi] Attempting WiFi reconnection..."));
       WiFi.disconnect();
-      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+      WiFi.begin(netCfg.wifiSSID, netCfg.wifiPassword);
     }
     return; // Chưa có WiFi thì không xử lý tiếp MQTT
   }

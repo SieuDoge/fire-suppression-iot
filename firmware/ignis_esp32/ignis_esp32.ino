@@ -5,13 +5,15 @@
 #include "TiltControl.h"
 #include "Actuators.h"
 #include "MqttControl.h"
+#include "NetworkConfig.h"
 
 // ===== MODE FLAGS =====
 bool panAuto  = false;
-bool fullAuto = false;
+bool fullAuto = true;    // DEFAULT: AUTO MODE ON
 
 void setup() {
   Serial.begin(115200);
+  Serial.setTimeout(100);  // cho readStringUntil nhanh
 
   initActuators();
   initPanControl();
@@ -19,25 +21,25 @@ void setup() {
   initMLX();
   initNetwork();
 
-  Serial.println(F("\n┌────────────────────────────────────────────────────────┐"));
-  Serial.println(F("│       🔥 IGNIS: AUTOMATED FIRE SUPPRESSION SYSTEM       │"));
-  Serial.println(F("├────────────────────────────────────────────────────────┤"));
-  Serial.println(F("│  [AUTO MODE COMMANDS]                                  │"));
-  Serial.println(F("│    f  →  FULL AUTO ON  (Pan → Tilt → Relay + Buzzer)    │"));
-  Serial.println(F("│    x  →  FULL AUTO OFF                                 │"));
-  Serial.println(F("│    a  →  PAN ONLY AUTO ON                              │"));
-  Serial.println(F("│    z  →  PAN ONLY AUTO OFF                             │"));
-  Serial.println(F("│                                                        │"));
-  Serial.println(F("│  [MANUAL TEST COMMANDS]                                │"));
-  Serial.println(F("│    s  →  Trigger single Pan check                      │"));
-  Serial.println(F("│    r  →  Reset Pan to Home (90°)                       │"));
-  Serial.println(F("│    p  →  Print raw horizontal sensor values            │"));
-  Serial.println(F("│    y  →  Reset Tilt to Home (90°)                      │"));
-  Serial.println(F("│    q  →  Print raw Tilt sensor status                  │"));
-  Serial.println(F("│    t  →  Read temperatures from MLX90614               │"));
-  Serial.println(F("│    1  →  Turn Water Pump ON   |  0  →  Turn Pump OFF    │"));
-  Serial.println(F("│    2  →  Turn Buzzer ON       |  3  →  Turn Buzzer OFF  │"));
-  Serial.println(F("└────────────────────────────────────────────────────────┘"));
+  Serial.println(F("\n┌──────────────────────────────────────────────────────────┐"));
+  Serial.println(F("│       🔥 IGNIS: AUTOMATED FIRE SUPPRESSION SYSTEM        │"));
+  Serial.println(F("├──────────────────────────────────────────────────────────┤"));
+  Serial.println(F("│  Mode: AUTO (default)                                    │"));
+  Serial.println(F("│                                                          │"));
+  Serial.println(F("│  [MANUAL TEST]                                           │"));
+  Serial.println(F("│    p  →  Print raw sensor status                         │"));
+  Serial.println(F("│    t  →  Read temperatures from MLX90614                 │"));
+  Serial.println(F("│    1  →  Pump ON          |  0  →  Pump OFF              │"));
+  Serial.println(F("│    2  →  Buzzer ON        |  3  →  Buzzer OFF            │"));
+  Serial.println(F("│    y  →  Reset Tilt Home (90°)                           │"));
+  Serial.println(F("│                                                          │"));
+  Serial.println(F("│  [CONFIG — no re-upload needed]                          │"));
+  Serial.println(F("│    wifi:SSID:PASSWORD   →  Change WiFi                   │"));
+  Serial.println(F("│    mqtt:SERVER:PORT     →  Change MQTT broker            │"));
+  Serial.println(F("│    config              →  Show current config            │"));
+  Serial.println(F("│    reset               →  Restore default config         │"));
+  Serial.println(F("│    reboot              →  Restart ESP32                  │"));
+  Serial.println(F("└──────────────────────────────────────────────────────────┘"));
 }
 
 void loop() {
@@ -58,37 +60,22 @@ void loop() {
 
   // ── SERIAL COMMANDS ───────────────────────────────────────────
   if (Serial.available()) {
-    char c = Serial.read();
+    String line = Serial.readStringUntil('\n');
+    line.trim();
 
-    // full auto
-    if (c == 'f') {
-      fullAuto = true; panAuto = false;
-      Serial.println(">> FULL AUTO ON");
-    }
-    if (c == 'x') {
-      fullAuto = false;
-      setAlarm(false);
-      Serial.println(">> FULL AUTO OFF");
-    }
+    if (line.length() == 0) return;
 
-    // pan auto
-    if (c == 'a') { panAuto = true;  fullAuto = false; Serial.println(">> [Pan] AUTO ON");  }
-    if (c == 'z') { panAuto = false; Serial.println(">> [Pan] AUTO OFF"); }
+    // Thử xử lý config commands trước (wifi:, mqtt:, config, reset, reboot)
+    if (handleConfigCommand(line)) return;
 
-    // pan manual
-    if (c == 's') calcAndPan();
-    if (c == 'r') goHome();
+    // Single-char commands cho test nhanh
+    char c = line.charAt(0);
     if (c == 'p') printSensors();
-
-    // tilt manual
-    if (c == 'y') goTiltHome();
-    if (c == 'q') printTiltSensor();
     if (c == 't') printMLXTemp();
-
-    // relay + buzzer manual
     if (c == '1') setRelay(true);
     if (c == '0') setRelay(false);
     if (c == '2') setBuzzer(true);
     if (c == '3') setBuzzer(false);
+    if (c == 'y') goTiltHome();
   }
 }
