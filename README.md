@@ -64,32 +64,19 @@ docker run --name mqtt_broker -p 1883:1883 -v $(pwd)/mosquitto.conf:/mosquitto/c
 
 *Lưu ý:* Database credentials được cấu hình mặc định trong `back_end/src/main/resources/application.properties` là `postgres` / `password`.
 
-### 3. Backend (Spring Boot)
+### 3. Deploy toàn bộ hệ thống bằng Docker (1-Click)
 
-Backend cung cấp REST API và WebSocket (STOMP) để đồng bộ dữ liệu.
+Thay vì phải cài đặt thủ công từng thành phần, dự án đã được đóng gói sẵn Docker cho toàn bộ: Backend (Spring Boot), Frontend (React+Nginx), Database (Postgres), và Broker (Mosquitto).
 
-```bash
-cd back_end
-# Cài đặt thư viện và build
-mvn clean install -DskipTests
-# Chạy Spring Boot application
-mvn spring-boot:run
-```
-- Backend sẽ chạy tại: `http://localhost:8080`
-
-### 4. Frontend (React + Vite)
-
-Web Dashboard hiển thị trạng thái hệ thống, cảnh báo và điều khiển thủ công.
+Chỉ cần chạy lệnh duy nhất này tại thư mục gốc:
 
 ```bash
-cd fss-dashboard
-# Cài đặt thư viện
-npm install
-# Chạy môi trường development
-npm run dev
+docker-compose up -d --build
 ```
-- Dashboard sẽ có thể truy cập tại: `http://localhost:5173`
-- *Lưu ý*: Hãy tạo tài khoản hoặc dùng tài khoản admin để truy cập Dashboard.
+
+- Hệ thống sẽ tự động build và chạy tất cả các container.
+- Dashboard sẽ hiển thị tại: `http://localhost` (hoặc IP của Server ở port 80).
+- Bạn không cần cài đặt Node.js hay Java trên máy chủ!
 
 ### 5. Nạp Firmware (ESP32)
 
