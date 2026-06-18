@@ -50,6 +50,14 @@ public class FireEventService {
         return mapToDTO(saved);
     }
 
+    public void deleteEvent(Integer id) {
+        repository.deleteById(id);
+    }
+
+    public void deleteAllEvents() {
+        repository.deleteAll();
+    }
+
     private FireEventDTO mapToDTO(FireEvent entity) {
         return FireEventDTO.builder()
                 .id(entity.getId())
