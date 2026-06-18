@@ -1,0 +1,289 @@
+{
+  "info": {
+    "name": "IGNIS Fire Suppression API v2",
+    "description": "API collection cho hệ thống chữa cháy tự động IGNIS.\n\n**Cách dùng:**\n1. Chạy request \"Login\" trước → JWT token tự động lưu\n2. Các request khác tự gắn Bearer token\n\nDefault account: admin / admin123",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{jwt_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "🔐 Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.success && jsonData.data && jsonData.data.token) {",
+                  "        pm.collectionVariables.set('jwt_token', jsonData.data.token);",
+                  "        console.log('✅ JWT token saved!');",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"admin\",\n    \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Đăng nhập và lấy JWT token.\n\nAccount mặc định (tạo tự động lần đầu):\n- username: admin\n- password: admin123\n\nToken tự động lưu vào biến `jwt_token` để dùng cho các request khác."
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 Dashboard",
+      "item": [
+        {
+          "name": "Get Live Sensor Data",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/dashboard/live-sensor",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dashboard", "live-sensor"]
+            },
+            "description": "Lấy bản ghi sensor mới nhất (1 record).\n\nResponse chứa: s0-s6, tiltSensor, panAngle, tiltAngle, pump, tempAmbient, tempObject."
+          }
+        },
+        {
+          "name": "Get Chart Data (50 records)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/dashboard/chart-data",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dashboard", "chart-data"]
+            },
+            "description": "Lấy 50 bản ghi sensor mới nhất — dùng để vẽ chart trên dashboard."
+          }
+        }
+      ]
+    },
+    {
+      "name": "📡 Sensors",
+      "item": [
+        {
+          "name": "Get Latest Readings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/sensors/latest?limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "sensors", "latest"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Số lượng record trả về (default: 10)"
+                }
+              ]
+            },
+            "description": "Lấy N bản ghi sensor mới nhất, sắp xếp theo thời gian giảm dần."
+          }
+        },
+        {
+          "name": "Submit Sensor Reading (Manual Test)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"sensorS0\": 0,\n    \"sensorS1\": 1,\n    \"sensorS2\": 0,\n    \"sensorS3\": 0,\n    \"sensorS4\": 0,\n    \"sensorS5\": 0,\n    \"sensorS6\": 0,\n    \"tiltSensor\": 1,\n    \"panAngle\": 30.0,\n    \"tiltAngle\": 45,\n    \"pump\": true,\n    \"tempAmbient\": 28.5,\n    \"tempObject\": 85.3\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/sensors",
+              "host": ["{{base_url}}"],
+              "path": ["api", "sensors"]
+            },
+            "description": "Gửi 1 bản ghi sensor thủ công (test API, không qua MQTT).\n\nBody khớp với MQTT payload `fire/status` từ ESP32."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔥 Fire Events",
+      "item": [
+        {
+          "name": "Get All Fire Events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/fire-events",
+              "host": ["{{base_url}}"],
+              "path": ["api", "fire-events"]
+            },
+            "description": "Lấy tất cả fire events, sắp xếp theo ID giảm dần (mới nhất trước).\n\nMỗi event có: detectedAt, extinguishedAt, panAngle, tiltAngle, maxTemp, durationSeconds, triggeredSensors."
+          }
+        },
+        {
+          "name": "Log Fire Event (Manual)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"detectedAt\": \"2026-06-08T15:00:00\",\n    \"panAngle\": 45.0,\n    \"tiltAngle\": 75.0,\n    \"maxTemp\": 120.5,\n    \"triggeredSensors\": \"S0 S1 S2\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/fire-events",
+              "host": ["{{base_url}}"],
+              "path": ["api", "fire-events"]
+            },
+            "description": "Tạo 1 fire event thủ công (test API).\n\nextinguishedAt và durationSeconds để trống — event chưa dập."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🎮 System Control",
+      "item": [
+        {
+          "name": "Send Control — Full Auto ON",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"action\": \"fullAuto\",\n    \"value\": \"on\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/system/control",
+              "host": ["{{base_url}}"],
+              "path": ["api", "system", "control"]
+            },
+            "description": "Gửi lệnh điều khiển qua MQTT topic `fire/control`.\n\nCác action hỗ trợ:\n- fullAuto: on/off\n- panAuto: on/off\n- pump: on/off\n- buzzer: on/off"
+          }
+        },
+        {
+          "name": "Send Control — Pump ON",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"action\": \"pump\",\n    \"value\": \"on\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/system/control",
+              "host": ["{{base_url}}"],
+              "path": ["api", "system", "control"]
+            },
+            "description": "Bật bơm thủ công qua MQTT."
+          }
+        },
+        {
+          "name": "Send Control — Pump OFF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"action\": \"pump\",\n    \"value\": \"off\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/system/control",
+              "host": ["{{base_url}}"],
+              "path": ["api", "system", "control"]
+            },
+            "description": "Tắt bơm thủ công qua MQTT."
+          }
+        },
+        {
+          "name": "Send Control — Buzzer ON",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"action\": \"buzzer\",\n    \"value\": \"on\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/system/control",
+              "host": ["{{base_url}}"],
+              "path": ["api", "system", "control"]
+            },
+            "description": "Bật buzzer qua MQTT."
+          }
+        }
+      ]
+    }
+  ]
+}

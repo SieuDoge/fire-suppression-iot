@@ -1,0 +1,299 @@
+{
+	"info": {
+		"_postman_id": "c138b3c3-6bb2-4148-9cde-c0e8fdf2847c",
+		"name": "Fire Suppression IoT API",
+		"description": "API Collection for the Automated Fire Suppression IoT System. Contains authentication, dashboard, sensor telemetry, fire event logging, and system control endpoints.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Authentication",
+			"item": [
+				{
+					"name": "User Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data && jsonData.data.token) {",
+									"    pm.collectionVariables.set(\"jwt_token\", jsonData.data.token);",
+									"    console.log(\"Saved JWT token to collection variable 'jwt_token'\");",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Login to receive JWT token. Saved automatically to `jwt_token`."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "2. Dashboard",
+			"item": [
+				{
+					"name": "Get Live Sensor Data",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/live-sensor",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"dashboard",
+								"live-sensor"
+							]
+						},
+						"description": "Retrieves the single latest mapped sensor reading (values 0/1 for S0-S6)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Chart Data (50 Latest)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/chart-data",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"dashboard",
+								"chart-data"
+							]
+						},
+						"description": "Retrieves the latest 50 records for drawing chart analytics."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "3. Sensors",
+			"item": [
+				{
+					"name": "Get Latest Readings",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/sensors/latest?limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"sensors",
+								"latest"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Number of records to retrieve"
+								}
+							]
+						},
+						"description": "Get latest sensor readings with customizable limit."
+					},
+					"response": []
+				},
+				{
+					"name": "Add Sensor Reading",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"sensorS0\": 0,\n  \"sensorS1\": 0,\n  \"sensorS2\": 0,\n  \"sensorS3\": 0,\n  \"sensorS4\": 1,\n  \"sensorS5\": 0,\n  \"sensorS6\": 0,\n  \"irTemp\": 62.8\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/sensors",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"sensors"
+							]
+						},
+						"description": "Manually submit a sensor reading (sensor values of 1 or irTemp > 55.0 will trigger a fire alert)."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "4. Fire Events",
+			"item": [
+				{
+					"name": "Get All Fire Events",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/fire-events",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"fire-events"
+							]
+						},
+						"description": "Get history of all fire events."
+					},
+					"response": []
+				},
+				{
+					"name": "Log Fire Event manually",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"detectedAt\": \"2026-06-05T19:45:00\",\n  \"extinguishedAt\": \"2026-06-05T19:47:30\",\n  \"panAngle\": 45.5,\n  \"tiltAngle\": 15.0,\n  \"maxTemp\": 85.5,\n  \"durationSeconds\": 150,\n  \"triggeredSensors\": \"S4\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/fire-events",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"fire-events"
+							]
+						},
+						"description": "Manually register a fire event log."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "5. System Control",
+			"item": [
+				{
+					"name": "Send MQTT Control Command",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"action\": \"fullAuto\",\n  \"value\": \"on\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/system/control",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"system",
+								"control"
+							]
+						},
+						"description": "Publish a command to the MQTT broker topic `fire/control`.\n\nActions: `fullAuto`, `panAuto`, `pump`, `buzzer`. Values: `on`, `off`."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{jwt_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "jwt_token",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
