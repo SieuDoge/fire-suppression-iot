@@ -50,3 +50,7 @@ Thumbs.db
 fss-dashboard/node_modules/
 fss-dashboard/dist/
 fss-dashboard/.svelte-kit/
+
+# === Agent & Blueprint Files ===
+.agents/
+IGNIS_*.md
