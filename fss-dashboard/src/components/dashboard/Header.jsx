@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useFss } from '../../context/FssContext'
+import { useAuth } from '../../context/AuthContext'
 import { fmtClock } from '../../data/constants'
 import { tempClass, threat, water, health, systemStatus, dangerBadge, avgResponse } from '../../utils/kpi'
 
@@ -9,6 +10,7 @@ import { tempClass, threat, water, health, systemStatus, dangerBadge, avgRespons
  */
 export default function Header() {
   const { state, actions } = useFss()
+  const auth = useAuth()
   const navigate = useNavigate()
 
   const th = threat(state.temp)
@@ -16,6 +18,11 @@ export default function Header() {
   const h = health(state)
   const sys = systemStatus(state.alertLevel)
   const resp = avgResponse(state.totalResponses)
+
+  const handleLogout = () => {
+    auth.logout()
+    navigate('/')
+  }
 
   return (
     <header>
@@ -63,20 +70,37 @@ export default function Header() {
           <div className={`spill-dot ${sys.cls}`}></div>
           <span>{sys.text}</span>
         </div>
-        <div className="sim-btns">
-          <button className="sbtn l1" onClick={() => actions.triggerAlert(1)}>LVL1</button>
-          <button className="sbtn l2" onClick={() => actions.triggerAlert(2)}>LVL2</button>
-          <button className="sbtn crit" onClick={() => actions.triggerAlert(3)}>CRIT</button>
-          <button className="sbtn rst" onClick={actions.extinguishFire}>RESET</button>
-        </div>
+
         <button
           className={`mode-btn ${state.isAutoMode ? 'auto' : 'manual'}`}
           onClick={actions.toggleMode}
         >
           {state.isAutoMode ? 'AUTO MODE' : 'MANUAL MODE'}
         </button>
+
+        {/* User info & admin link */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '8px' }}>
+          {auth.isAdmin && (
+            <button
+              className="sbtn l1"
+              style={{ fontSize: '9px', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer' }}
+              onClick={() => navigate('/admin')}
+              title="Admin Panel"
+            >
+              ADMIN
+            </button>
+          )}
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'flex-end',
+            fontFamily: "'DM Mono', monospace", fontSize: '10px', lineHeight: '1.3'
+          }}>
+            <span style={{ color: 'var(--text)', fontWeight: 600 }}>{auth.user || 'User'}</span>
+            <span style={{ color: 'var(--text3)', textTransform: 'uppercase', fontSize: '8px' }}>{auth.role || 'viewer'}</span>
+          </div>
+        </div>
+
         <div className="h-clock">{fmtClock()}</div>
-        <button className="btn-logout" title="Đăng xuất" onClick={() => navigate('/')}>⏻</button>
+        <button className="btn-logout" title="Đăng xuất" onClick={handleLogout}>⏻</button>
       </div>
     </header>
   )

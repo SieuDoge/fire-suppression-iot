@@ -59,6 +59,7 @@ export function createInitialState() {
     rtPumpActivation: 0,
     // Timeline events (mới nhất ở đầu mảng)
     events: [],
+    buzzerOn: false,
   }
 }
 

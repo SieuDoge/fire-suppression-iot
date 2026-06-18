@@ -5,7 +5,15 @@ import {
   PRESSURE_FLOW,
   createInitialState,
 } from '../data/constants'
-import { USE_REAL_API, POLL_INTERVAL, postServo, postPump, postMode, postAlert, getDashboard } from '../services/api'
+import {
+  USE_REAL_API,
+  POLL_INTERVAL,
+  getDashboard,
+  getFireEvents,
+  getChartData,
+  postControl,
+} from '../services/api'
+import useWebSocket from './useWebSocket'
 
 /* ============================================================
    useFssSystem — Nguồn dữ liệu trung tâm của Dashboard.
@@ -17,10 +25,36 @@ import { USE_REAL_API, POLL_INTERVAL, postServo, postPump, postMode, postAlert, 
    - Khi USE_REAL_API = true: polling GET /api/dashboard mỗi
      POLL_INTERVAL ms và đồng bộ dữ liệu thật vào state.
    ============================================================ */
+
+/**
+ * Maps backend SensorReadingDTO to internal state format.
+ */
+function mapSensorDTO(dto) {
+  if (!dto) return null
+  return {
+    temp: dto.tempObject ?? 28.5,
+    tempAmbient: dto.tempAmbient ?? 25.0,
+    pan: dto.panAngle ?? 90,
+    tilt: dto.tiltAngle ?? 0,
+    pumpOn: dto.pump ?? false,
+    sensors: {
+      s0: dto.sensorS0 === 1,
+      s1: dto.sensorS1 === 1,
+      s2: dto.sensorS2 === 1,
+      s3: dto.sensorS3 === 1,
+      s4: dto.sensorS4 === 1,
+      s5: dto.sensorS5 === 1,
+      s6: dto.sensorS6 === 1,
+    },
+  }
+}
+
 export default function useFssSystem() {
   const [state, setState] = useState(createInitialState)
   // now: nhịp đồng hồ 1s, dùng để suy ra uptime / elapsed
   const [now, setNow] = useState(Date.now())
+  // WebSocket connection status
+  const [wsConnected, setWsConnected] = useState(false)
 
   // Giữ bản state mới nhất cho các callback chạy trong setTimeout
   const stateRef = useRef(state)
@@ -36,6 +70,62 @@ export default function useFssSystem() {
   const addEvent = useCallback((icon, text, bold = false, type = 'info') => {
     setState((prev) => ({ ...prev, ...pushEvent(prev, icon, text, bold, type) }))
   }, [])
+
+  /* --- WebSocket callbacks (stable via refs) --- */
+  const onSensorData = useCallback((dto) => {
+    const mapped = mapSensorDTO(dto)
+    if (!mapped) return
+    setState((prev) => {
+      // Determine alert level from sensor count
+      const activeCount = Object.values(mapped.sensors).filter(Boolean).length
+      let alertLevel = prev.alertLevel
+      if (activeCount === 0) alertLevel = 0
+      else if (activeCount <= 2) alertLevel = 1
+      else if (activeCount <= 4) alertLevel = 2
+      else alertLevel = 3
+
+      return {
+        ...prev,
+        temp: mapped.temp,
+        tempAmbient: mapped.tempAmbient,
+        pan: mapped.pan,
+        tilt: mapped.tilt,
+        pumpOn: mapped.pumpOn,
+        sensors: mapped.sensors,
+        alertLevel,
+        lastEsp32Heartbeat: Date.now(),
+        tempHistory: [...prev.tempHistory, mapped.temp].slice(-120),
+        panHistory: [...prev.panHistory, mapped.pan].slice(-60),
+        tiltHistory: [...prev.tiltHistory, mapped.tilt].slice(-60),
+      }
+    })
+  }, [])
+
+  const onAlertData = useCallback((dto) => {
+    if (!dto) return
+    // dto is a FireEventDTO — add to timeline
+    const maxTemp = dto.maxTemp ?? 0
+    let alertType = 'info'
+    let icon = '🔥'
+    if (maxTemp >= 100) { alertType = 'fire'; icon = '☢' }
+    else if (maxTemp >= 60) { alertType = 'fire'; icon = '🔥' }
+    else { alertType = 'warn'; icon = '⚠️' }
+
+    const text = `Fire event detected — Max temp: ${maxTemp.toFixed(1)}°C — Sensors: ${dto.triggeredSensors || 'N/A'}`
+    addEvent(icon, text, true, alertType)
+  }, [addEvent])
+
+  /* --- WebSocket hook --- */
+  const { connected: wsConn } = useWebSocket({
+    onSensorData,
+    onAlertData,
+    enabled: USE_REAL_API,
+  })
+
+  // Track WS connected status
+  useEffect(() => {
+    setWsConnected(wsConn)
+  }, [wsConn])
 
   /* ---------------- Đồng hồ + nhịp 1 giây ---------------- */
   useEffect(() => {
@@ -94,24 +184,34 @@ export default function useFssSystem() {
     let active = true
     const poll = async () => {
       try {
-        const d = await getDashboard()
-        if (!active || !d) return
-        setState((prev) => ({
-          ...prev,
-          temp: d.temp ?? prev.temp,
-          pan: d.pan ?? prev.pan,
-          tilt: d.tilt ?? prev.tilt,
-          pumpOn: d.pumpOn ?? prev.pumpOn,
-          pressure: d.pressure ?? prev.pressure,
-          flowRate: d.flowRate ?? prev.flowRate,
-          waterL: d.waterL ?? prev.waterL,
-          waterUsed: d.waterUsed ?? prev.waterUsed,
-          alertLevel: d.alertLevel ?? prev.alertLevel,
-          sensors: d.sensors ?? prev.sensors,
-          tempHistory: [...prev.tempHistory, d.temp ?? prev.temp].slice(-120),
-          panHistory: [...prev.panHistory, d.pan ?? prev.pan].slice(-60),
-          tiltHistory: [...prev.tiltHistory, d.tilt ?? prev.tilt].slice(-60),
-        }))
+        const response = await getDashboard()
+        if (!active || !response) return
+        // response = { success, message, data: SensorReadingDTO }
+        const dto = response.data || response
+        const mapped = mapSensorDTO(dto)
+        if (!mapped) return
+        setState((prev) => {
+          const activeCount = Object.values(mapped.sensors).filter(Boolean).length
+          let alertLevel = prev.alertLevel
+          if (activeCount === 0) alertLevel = 0
+          else if (activeCount <= 2) alertLevel = 1
+          else if (activeCount <= 4) alertLevel = 2
+          else alertLevel = 3
+
+          return {
+            ...prev,
+            temp: mapped.temp,
+            tempAmbient: mapped.tempAmbient,
+            pan: mapped.pan,
+            tilt: mapped.tilt,
+            pumpOn: mapped.pumpOn,
+            sensors: mapped.sensors,
+            alertLevel,
+            tempHistory: [...prev.tempHistory, mapped.temp].slice(-120),
+            panHistory: [...prev.panHistory, mapped.pan].slice(-60),
+            tiltHistory: [...prev.tiltHistory, mapped.tilt].slice(-60),
+          }
+        })
       } catch {
         /* lỗi đã được log ở interceptor */
       }
@@ -122,6 +222,65 @@ export default function useFssSystem() {
       active = false
       clearInterval(id)
     }
+  }, [])
+
+  /* ---------- Load initial fire events & chart data ------ */
+  useEffect(() => {
+    if (!USE_REAL_API) return
+    // Load fire events
+    getFireEvents()
+      .then((res) => {
+        const events = res?.data || res
+        if (Array.isArray(events) && events.length > 0) {
+          // Map backend FireEventDTO → incidents format for IncidentsPane
+          const incidents = events.map((evt, idx) => {
+            const maxTemp = evt.maxTemp ?? 0
+            const level = maxTemp >= 100 ? 'CRIT' : maxTemp >= 60 ? 'L2' : 'L1'
+            const detectedAt = evt.detectedAt ? new Date(evt.detectedAt) : new Date()
+            const extinguishedAt = evt.extinguishedAt ? new Date(evt.extinguishedAt) : null
+            const durationMs = extinguishedAt ? (extinguishedAt - detectedAt) : 0
+            return {
+              id: String(evt.id).padStart(3, '0'),
+              zone: evt.triggeredSensors || 'N/A',
+              maxTemp: maxTemp,
+              waterUsed: evt.waterUsed ?? 0,
+              responseTime: durationMs || (Math.floor(800 + Math.random() * 2000)),
+              level,
+              rtDetection: evt.detectionTime ?? 0,
+              rtServoTrack: evt.servoTrackTime ?? 0,
+              rtPumpActivation: evt.pumpActivationTime ?? 0,
+              startStr: detectedAt.toTimeString().slice(0, 8),
+              result: extinguishedAt ? 'SUPPRESSED' : 'ACTIVE',
+            }
+          })
+          setState((prev) => ({
+            ...prev,
+            eventsToday: events.length,
+            incidents,
+            incidentCounter: events.length,
+          }))
+          // Add recent events to timeline
+          events.slice(0, 5).forEach((evt) => {
+            const text = `Fire event #${evt.id} — Max: ${evt.maxTemp?.toFixed(1) ?? '?'}°C — ${evt.triggeredSensors || 'N/A'}`
+            addEvent('📋', text, false, 'info')
+          })
+        }
+      })
+      .catch(() => {})
+
+    // Load chart data for history
+    getChartData()
+      .then((res) => {
+        const data = res?.data || res
+        if (data && Array.isArray(data.temperatures)) {
+          setState((prev) => ({
+            ...prev,
+            tempHistory: data.temperatures.slice(-120),
+          }))
+        }
+      })
+      .catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   /* ---------------- Sự kiện khởi động (boot) ------------ */
@@ -144,7 +303,7 @@ export default function useFssSystem() {
   const toggleMode = useCallback(() => {
     setState((prev) => {
       const isAutoMode = !prev.isAutoMode
-      if (USE_REAL_API) postMode(isAutoMode).catch(() => {})
+      if (USE_REAL_API) postControl('fullAuto', isAutoMode ? 'on' : 'off').catch(() => {})
       return {
         ...prev,
         isAutoMode,
@@ -155,9 +314,15 @@ export default function useFssSystem() {
 
   const updateServo = useCallback((axis, val, api = true) => {
     val = parseInt(val, 10)
+    if (isNaN(val)) return
+    const max = axis === 'pan' ? 180 : 90
+    val = Math.max(0, Math.min(max, val))
     setState((prev) => {
+      if (prev.isAutoMode) return prev
       const next = axis === 'pan' ? { ...prev, pan: val } : { ...prev, tilt: val }
-      if (api && USE_REAL_API) postServo(next.pan, next.tilt).catch(() => {})
+      if (api && USE_REAL_API) {
+        postControl('servo', `pan:${next.pan},tilt:${next.tilt}`).catch(() => {})
+      }
       return next
     })
   }, [])
@@ -167,11 +332,11 @@ export default function useFssSystem() {
       if (prev.isAutoMode) return prev
       if (axis === 'pan') {
         const v = Math.max(0, Math.min(180, prev.pan + d))
-        if (USE_REAL_API) postServo(v, prev.tilt).catch(() => {})
+        if (USE_REAL_API) postControl('servo', `pan:${v},tilt:${prev.tilt}`).catch(() => {})
         return { ...prev, pan: v, ...pushEvent(prev, '⚙', `Servo PAN manually nudged ${d > 0 ? '+' : ''}${d}° (now: ${v}°)`, false, 'info') }
       }
       const v = Math.max(0, Math.min(90, prev.tilt + d))
-      if (USE_REAL_API) postServo(prev.pan, v).catch(() => {})
+      if (USE_REAL_API) postControl('servo', `pan:${prev.pan},tilt:${v}`).catch(() => {})
       return { ...prev, tilt: v, ...pushEvent(prev, '⚙', `Servo TILT manually nudged ${d > 0 ? '+' : ''}${d}° (now: ${v}°)`, false, 'info') }
     })
   }, [])
@@ -186,7 +351,7 @@ export default function useFssSystem() {
       const sum = active.reduce((a, id) => a + SENSOR_ANGLES[id], 0)
       const targetPan = Math.round(sum / active.length)
       const targetTilt = Math.min(90, 30 + active.length * 10)
-      if (USE_REAL_API) postServo(targetPan, targetTilt).catch(() => {})
+      if (USE_REAL_API) postControl('servo', `pan:${targetPan},tilt:${targetTilt}`).catch(() => {})
       return {
         ...prev,
         pan: targetPan,
@@ -201,7 +366,7 @@ export default function useFssSystem() {
   const centerServo = useCallback(() => {
     setState((prev) => {
       if (prev.isAutoMode) return prev
-      if (USE_REAL_API) postServo(90, 45).catch(() => {})
+      if (USE_REAL_API) postControl('servo', 'pan:90,tilt:45').catch(() => {})
       return { ...prev, pan: 90, tilt: 45, tracking: false, targetLocked: false, ...pushEvent(prev, '⊕', 'Servo centered manually (90°/45°)', false, 'info') }
     })
   }, [])
@@ -209,7 +374,7 @@ export default function useFssSystem() {
   const resetServo = useCallback(() => {
     setState((prev) => {
       if (prev.isAutoMode) return prev
-      if (USE_REAL_API) postServo(90, 0).catch(() => {})
+      if (USE_REAL_API) postControl('servo', 'pan:90,tilt:0').catch(() => {})
       return { ...prev, pan: 90, tilt: 0, tracking: false, targetLocked: false, ...pushEvent(prev, '⌂', 'Servo returned to home (90°/0°)', false, 'info') }
     })
   }, [])
@@ -218,7 +383,7 @@ export default function useFssSystem() {
     setState((prev) => {
       if (prev.isAutoMode) return prev
       const pumpOn = !prev.pumpOn
-      if (USE_REAL_API) postPump({ on: pumpOn, flowRate: prev.flowRate, pressure: prev.pressure }).catch(() => {})
+      if (USE_REAL_API) postControl('pump', pumpOn ? 'on' : 'off').catch(() => {})
       return { ...prev, pumpOn, ...pushEvent(prev, '⚙', `Operator manually toggled Pump ${pumpOn ? 'ON' : 'OFF'}`, true, 'info') }
     })
   }, [])
@@ -227,8 +392,17 @@ export default function useFssSystem() {
     setState((prev) => {
       if (prev.isAutoMode) return prev
       const flowRate = PRESSURE_FLOW[level]
-      if (USE_REAL_API) postPump({ on: prev.pumpOn, flowRate, pressure: level }).catch(() => {})
+      if (USE_REAL_API) postControl('pump', `pressure:${level}`).catch(() => {})
       return { ...prev, pressure: level, flowRate, ...pushEvent(prev, '⚙', `Operator set Pump pressure to ${level} (${flowRate} L/min)`, false, 'info') }
+    })
+  }, [])
+
+  const toggleBuzzer = useCallback(() => {
+    setState((prev) => {
+      if (prev.isAutoMode) return prev
+      const buzzerOn = !prev.buzzerOn
+      if (USE_REAL_API) postControl('buzzer', buzzerOn ? 'on' : 'off').catch(() => {})
+      return { ...prev, buzzerOn, ...pushEvent(prev, '🔔', `Operator manually toggled Buzzer/Alarm ${buzzerOn ? 'ON' : 'OFF'}`, true, buzzerOn ? 'warn' : 'info') }
     })
   }, [])
 
@@ -280,7 +454,6 @@ export default function useFssSystem() {
         }
       }
 
-      if (USE_REAL_API) postAlert(level).catch(() => {})
       return { ...next, sensors, ...ev }
     })
 
@@ -357,7 +530,7 @@ export default function useFssSystem() {
 
   return {
     state,
-    derived: { uptimeSec, elapsedSec, now },
+    derived: { uptimeSec, elapsedSec, now, wsConnected },
     actions: {
       toggleMode,
       updateServo,
@@ -367,6 +540,7 @@ export default function useFssSystem() {
       resetServo,
       togglePumpManual,
       setPumpPressure,
+      toggleBuzzer,
       triggerAlert,
       suppressAlert,
       extinguishFire,

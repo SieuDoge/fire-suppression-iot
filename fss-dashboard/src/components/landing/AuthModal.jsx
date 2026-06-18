@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { useAuth } from '../../context/AuthContext'
+import { register } from '../../services/api'
 
 /**
  * AuthModal — modal Đăng nhập / Đăng ký.
@@ -8,7 +10,11 @@ import { useEffect, useState } from 'react'
  * @param {() => void} onSubmit         xử lý sau khi đăng nhập/đăng ký (điều hướng)
  */
 export default function AuthModal({ type, onClose, onSwitch, onSubmit }) {
+  const auth = useAuth()
   const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
 
   // Đóng modal bằng phím ESC + khóa cuộn nền
   useEffect(() => {
@@ -23,16 +29,51 @@ export default function AuthModal({ type, onClose, onSwitch, onSubmit }) {
   }, [type, onClose])
 
   // Reset trạng thái khi đổi loại modal
-  useEffect(() => setSubmitting(false), [type])
+  useEffect(() => {
+    setSubmitting(false)
+    setError('')
+    setUsername('')
+    setPassword('')
+  }, [type])
 
   if (!type) return null
 
   const isLogin = type === 'login'
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setSubmitting(true)
-    // Giả lập gọi xác thực rồi điều hướng sang Dashboard
-    setTimeout(() => onSubmit(), 700)
+    setError('')
+    try {
+      if (isLogin) {
+        const result = await auth.login(username, password)
+        if (result.success) {
+          onSubmit()
+        } else {
+          setError(result.message || 'Login failed')
+          setSubmitting(false)
+        }
+      } else {
+        // Signup
+        const res = await register(username, password)
+        if (res.success) {
+          // Auto-login after registration
+          const loginResult = await auth.login(username, password)
+          if (loginResult.success) {
+            onSubmit()
+          } else {
+            // Registration succeeded, ask user to login
+            setError('')
+            onSwitch('login')
+          }
+        } else {
+          setError(res.message || 'Registration failed')
+          setSubmitting(false)
+        }
+      }
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || 'An error occurred')
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -49,21 +90,43 @@ export default function AuthModal({ type, onClose, onSwitch, onSubmit }) {
           {isLogin ? 'Truy cập hệ thống điều khiển của bạn' : 'Bắt đầu giám sát hệ thống trong vài phút'}
         </p>
 
-        {!isLogin && (
-          <div className="field">
-            <div className="field-label">Họ &amp; Tên</div>
-            <input className="field-input" type="text" placeholder="Nguyễn Văn A" />
+        {error && (
+          <div style={{
+            background: 'rgba(255,93,93,0.1)',
+            border: '1px solid rgba(255,93,93,0.3)',
+            borderRadius: '8px',
+            padding: '8px 12px',
+            marginBottom: '12px',
+            color: '#ff5d5d',
+            fontSize: '13px',
+            textAlign: 'center',
+          }}>
+            {error}
           </div>
         )}
 
         <div className="field">
-          <div className="field-label">Email</div>
-          <input className="field-input" type="email" placeholder={isLogin ? 'admin@fss.local' : 'you@example.com'} />
+          <div className="field-label">{isLogin ? 'Username' : 'Username'}</div>
+          <input
+            className="field-input"
+            type="text"
+            placeholder={isLogin ? 'admin' : 'your_username'}
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+          />
         </div>
 
         <div className="field">
           <div className="field-label">Mật khẩu</div>
-          <input className="field-input" type="password" placeholder={isLogin ? '••••••••' : 'Tối thiểu 8 ký tự'} />
+          <input
+            className="field-input"
+            type="password"
+            placeholder={isLogin ? '••••••••' : 'Tối thiểu 8 ký tự'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+          />
         </div>
 
         <button className="modal-submit" onClick={handleSubmit} disabled={submitting}>

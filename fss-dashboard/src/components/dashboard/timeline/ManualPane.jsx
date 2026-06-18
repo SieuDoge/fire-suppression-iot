@@ -1,4 +1,5 @@
 import { useFss } from '../../../context/FssContext'
+import { useAuth } from '../../../context/AuthContext'
 
 /**
  * ManualPane — điều khiển servo thủ công (chỉ hoạt động ở MANUAL MODE):
@@ -6,7 +7,29 @@ import { useFss } from '../../../context/FssContext'
  */
 export default function ManualPane() {
   const { state, actions } = useFss()
+  const { isAdmin } = useAuth()
   const auto = state.isAutoMode
+
+  if (!isAdmin) {
+    return (
+      <div className="tab-pane active" id="pane-manual">
+        <div className="mc-section" style={{ paddingBottom: 0, borderBottom: 'none' }}>
+          <div className="manual-locked-notice">
+            🔒 Manual control requires Admin privileges
+          </div>
+          <div style={{
+            textAlign: 'center',
+            color: 'var(--text3)',
+            fontSize: '12px',
+            padding: '16px 12px',
+            fontFamily: "'DM Sans', sans-serif",
+          }}>
+            Contact your system administrator to request access to manual servo controls.
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="tab-pane active" id="pane-manual">
@@ -79,6 +102,42 @@ export default function ManualPane() {
           <button className="str-btn reset" onClick={actions.resetServo} disabled={auto}>HOME</button>
         </div>
       </div>
+
+      <div className="mc-section">
+        <div className="mc-title">Buzzer / Alarm</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '4px 0' }}>
+          <button
+            className={`str-btn ${state.buzzerOn ? 'track' : 'reset'}`}
+            onClick={actions.toggleBuzzer}
+            disabled={auto}
+            style={{
+              flex: 1,
+              padding: '10px 0',
+              fontSize: '12px',
+              fontWeight: 700,
+              letterSpacing: '0.5px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+            }}
+          >
+            {state.buzzerOn ? '🔔' : '🔕'} {state.buzzerOn ? 'ALARM ON' : 'ALARM OFF'}
+          </button>
+        </div>
+        <div style={{
+          fontSize: '10px',
+          color: state.buzzerOn ? 'var(--warn)' : 'var(--text3)',
+          fontFamily: "'DM Mono', monospace",
+          textAlign: 'center',
+          marginTop: '4px',
+        }}>
+          {auto ? 'Buzzer controlled by system in AUTO mode'
+            : state.buzzerOn ? '⚠ Alarm is sounding — click to deactivate'
+            : 'Click to manually activate alarm buzzer'}
+        </div>
+      </div>
     </div>
   )
 }
+

@@ -1,4 +1,5 @@
 import { useFss } from '../../context/FssContext'
+import { useAuth } from '../../context/AuthContext'
 import { water } from '../../utils/kpi'
 
 /**
@@ -7,8 +8,9 @@ import { water } from '../../utils/kpi'
  */
 export default function PumpControl() {
   const { state, actions } = useFss()
+  const { isAdmin } = useAuth()
   const w = water(state)
-  const disabled = state.isAutoMode
+  const disabled = state.isAutoMode || !isAdmin
   const flowPct = state.pumpOn ? Math.min(100, (state.flowRate / 120) * 100) : 0
 
   return (
@@ -83,14 +85,26 @@ export default function PumpControl() {
 
         {/* Toggle + state */}
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <button
-            className={`str-btn ${state.pumpOn ? 'reset' : 'center'}`}
-            style={{ flex: 1, padding: '6px 0' }}
-            onClick={actions.togglePumpManual}
-            disabled={disabled}
-          >
-            {state.pumpOn ? 'TURN OFF' : 'TURN ON'}
-          </button>
+          {isAdmin ? (
+            <button
+              className={`str-btn ${state.pumpOn ? 'reset' : 'center'}`}
+              style={{ flex: 1, padding: '6px 0' }}
+              onClick={actions.togglePumpManual}
+              disabled={state.isAutoMode}
+            >
+              {state.pumpOn ? 'TURN OFF' : 'TURN ON'}
+            </button>
+          ) : (
+            <div style={{
+              flex: 1, padding: '6px 0', textAlign: 'center',
+              fontSize: '10px', color: 'var(--text3)',
+              fontFamily: "'DM Mono', monospace",
+              background: 'var(--surface2)', borderRadius: '6px',
+              border: '1px solid var(--border)',
+            }}>
+              🔒 Admin only
+            </div>
+          )}
           <span style={{ fontFamily: "'DM Mono',monospace", fontSize: '10px', color: 'var(--text3)' }}>
             State:{' '}
             <span style={{ fontWeight: 600, color: state.pumpOn ? 'var(--ok)' : 'var(--text3)' }}>
