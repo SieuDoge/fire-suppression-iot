@@ -45,3 +45,8 @@ bin/
 # === System Files ===
 .DS_Store
 Thumbs.db
+
+# === FSS Dashboard ===
+fss-dashboard/node_modules/
+fss-dashboard/dist/
+fss-dashboard/.svelte-kit/
