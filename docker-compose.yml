@@ -38,6 +38,10 @@ services:
       - MQTT_BROKER_URL=tcp://mqtt:1883
       # Backend will run on 8080 inside the container
       - SERVER_PORT=8080
+      # Telegram Bot Config
+      - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME:-disabled}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-disabled}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-0}
     depends_on:
       - db
       - mqtt
