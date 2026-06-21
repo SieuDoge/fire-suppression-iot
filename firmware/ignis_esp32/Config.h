@@ -8,7 +8,7 @@
 
 // ===== TILT SENSOR (KY-026 trên servo tilt) =====
 #define TILT_SENSOR_PIN     4
-#define FIRE_THRESHOLD_TILT 700   // custom KY-026: DƯỚI = lửa (tăng = nhạy hơn)
+#define FIRE_THRESHOLD_TILT 700   // Trong nhà: KY-026 val < 700 = lửa
 
 // ===== TILT RANGE =====
 #define TILT_HOME     90   // góc home (manual)
@@ -27,8 +27,8 @@
 #define S6_PIN    36    // custom phải
 
 #define NUM_SENSORS          7
-#define FIRE_THRESHOLD_KY   700    // KY-026: val < threshold = lửa (tăng = nhạy hơn)
-#define FIRE_THRESHOLD_MOD  3000   // Module:  val > threshold = lửa (giảm = nhạy hơn)
+#define FIRE_THRESHOLD_KY   700    // Trong nhà: KY-026 val < 700 = lửa
+#define FIRE_THRESHOLD_MOD  3000   // Trong nhà: Module val > 3000 = lửa
 
 extern int sensorPins[NUM_SENSORS];
 extern float sensorAngles[NUM_SENSORS];

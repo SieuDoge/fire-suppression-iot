@@ -26,6 +26,19 @@ static void stateHeader(const char* msg) {
   Serial.println(F("  └────────────────────────────────┘"));
 }
 
+// ── Helper: đọc tilt sensor 5 lần, cần >= 2 lần LOW mới báo lửa ─────────
+// Tránh nhiễu chớp thoáng qua, nhưng vẫn nhạy hơn đọc 1 lần
+static bool readTiltFire() {
+  const int SAMPLES   = 5;   // số lần đọc
+  const int THRESHOLD = 2;   // cần ít nhất bao nhiêu lần LOW
+  int lowCount = 0;
+  for (int i = 0; i < SAMPLES; i++) {
+    if (digitalRead(TILT_SENSOR_PIN) == LOW) lowCount++;
+    delayMicroseconds(200);  // 200µs giữa mỗi lần đọc
+  }
+  return (lowCount >= THRESHOLD);
+}
+
 // ===== INIT =====
 void initTiltControl() {
   pinMode(TILT_SENSOR_PIN, INPUT_PULLUP);
@@ -45,9 +58,10 @@ void updateTilt(bool panFire) {
 
     // ── WAIT ─────────────────────────────────────────────────────────
     case TILT_WAIT:
-      if (panFire) {
-        stateHeader("\U0001f525 Pan có lửa  →  SCANNING         ");
-        scanAngle  = TILT_MIN;
+      if (panStable) {
+        // Chỉ bắt đầu quét khi pan đã lock xong (trung bình 5 mẫu)
+        stateHeader("\U0001f525 Pan LOCK  →  SCANNING tilt      ");
+        scanAngle  = TILT_MIN;   // bắt đầu từ đầu mỗi lần
         lastStepMs = now;
         tiltState  = TILT_SCANNING;
       } else {
@@ -61,9 +75,8 @@ void updateTilt(bool panFire) {
       }
       break;
 
-    // ── SCANNING ─────────────────────────────────────────────────────
-    // Pan chạy tự do realtime trong lúc quét.
-    // Không lock, không check panDrifted.
+    // ── SCANNING ─────────────────────────────────────────────────
+    // Pan đã lock, tilt quét từ TILT_MIN → TILT_MAX để tìm góc lửa.
     case TILT_SCANNING:
       if (!panFire) {
         Serial.println(F("[SCAN]  Pan mất lửa  →  abort"));
@@ -76,8 +89,7 @@ void updateTilt(bool panFire) {
 
       servoTilt.write(scanAngle);
       {
-        bool onFire = (digitalRead(TILT_SENSOR_PIN) == LOW);
-        int  val    = onFire ? 100 : 4095;
+        bool onFire = readTiltFire();  // đọc 5 mẫu, cần â2 lần LOW
 
         Serial.print(F("[SCAN]  "));
         if (scanAngle < 100) Serial.print(' ');
@@ -86,12 +98,12 @@ void updateTilt(bool panFire) {
         Serial.println(onFire ? F("°  \U0001f525  FOUND") : F("°  —"));
 
         if (onFire) {
-          lastTiltAngle = scanAngle;
-          tiltFireStart = now;   // bắt đầu đếm 2s tilt
-          lastTiltFireMs = now;  // lưu mốc thời gian phát hiện lửa
-          lastPrintMs   = 0;
-          alarmOn       = false;
-          tiltState     = TILT_TRACKING;
+          lastTiltAngle  = scanAngle;
+          tiltFireStart  = now;
+          lastTiltFireMs = now;
+          lastPrintMs    = 0;
+          alarmOn        = false;
+          tiltState      = TILT_TRACKING;
           stateHeader("\U0001f525 Tilt thấy lửa  →  TRACKING        ");
           return;
         }
@@ -113,11 +125,11 @@ void updateTilt(bool panFire) {
       lastStepMs = now;
 
       {
-        bool onFire = (digitalRead(TILT_SENSOR_PIN) == LOW);
+        bool onFire = readTiltFire();  // đọc 5 mẫu, cần ≥2 lần LOW
         int  val    = onFire ? 100 : 4095;
 
         if (onFire) {
-          lastTiltFireMs = now; // Cập nhật mốc thời gian có lửa
+          lastTiltFireMs = now;
         } else {
           // Lửa mất
           if (alarmOn) {
@@ -131,7 +143,7 @@ void updateTilt(bool panFire) {
               return;
             }
           } else {
-            // Nếu chưa bật bơm mà mất lửa, huỷ bỏ quét và trả về ngay
+            // Chưa bật bơm mà mất lửa → trả về và quét lại từ đầu
             stateHeader("\U0001f9ef Mất lửa khi chưa bật bơm  →  RETURNING");
             tiltState = TILT_RETURNING;
             return;
@@ -202,6 +214,7 @@ void updateTilt(bool panFire) {
       servoTilt.write(TILT_DEFAULT);
       lastTiltAngle = TILT_DEFAULT;
       tiltFireStart = 0;
+      unlockPan();    // giải phóng lock pan — pan sẽ tính lại góc mới nếu vẫn còn lửa
       tiltState     = TILT_WAIT;
       Serial.print(F("[TILT]  \U0001f3e0 Về "));
       Serial.print(TILT_DEFAULT);
