@@ -78,6 +78,42 @@ Giao diện Dashboard sẽ hiển thị ở `http://localhost:5173`.
 
 ---
 
+## 🤖 Hướng dẫn tích hợp Telegram Bot
+
+Hệ thống hỗ trợ gửi cảnh báo cháy qua Telegram và cho phép điều khiển từ xa thông qua chat.
+
+### 1. Thiết lập Bot
+1. Tìm **@BotFather** trên Telegram, gửi lệnh `/newbot` để tạo Bot và lấy **Token**.
+2. Thêm Bot của bạn vào Group chat (nên cấp quyền Admin cho Bot).
+3. Tắt Group Privacy của Bot (vào @BotFather -> `/mybots` -> Chọn Bot -> Bot Settings -> Group Privacy -> Turn OFF).
+4. Lấy Chat ID của Group bằng cách gửi một tin nhắn bất kỳ vào Group, rồi truy cập link:
+   `https://api.telegram.org/bot<TOKEN_CỦA_BẠN>/getUpdates` (Chat ID của Group thường bắt đầu bằng dấu trừ `-`).
+5. Tạo file `.env` từ file `.env.example` và điền cấu hình:
+   ```properties
+   TELEGRAM_BOT_USERNAME=TÊN_BOT
+   TELEGRAM_BOT_TOKEN=TOKEN_BOT
+   TELEGRAM_CHAT_ID=-100xxxxxxxxxx
+   ```
+6. Khởi động lại Docker (`docker compose up -d`).
+
+### 2. Danh sách lệnh Bot
+Đăng ký các lệnh này với @BotFather (dùng lệnh `/setcommands`):
+```text
+start - Xem lời chào và hướng dẫn
+id - Xem Chat ID hiện tại
+control - Điều khiển hệ thống (VD: /control pump on)
+```
+
+**Các lệnh điều khiển hệ thống (`/control`):**
+*Lưu ý: Phải tắt chế độ Auto (`/control fullAuto off`) trước khi điều khiển thủ công bơm/còi/servo.*
+- `/control fullAuto off` / `on`: Tắt / Bật chế độ tự động hoàn toàn.
+- `/control panAuto off` / `on`: Tắt / Bật chế độ quét tự động (Pan).
+- `/control pump on` / `off`: Bật / Tắt máy bơm.
+- `/control buzzer on` / `off`: Bật / Tắt còi báo động.
+- `/control servo pan:90,tilt:45`: Điều khiển góc xoay của Servo.
+
+---
+
 ## ⚡ Hướng dẫn cấu hình Firmware cho ESP32
 
 Để kết nối bo mạch ESP32 với hệ thống, hãy làm theo các bước sau:
